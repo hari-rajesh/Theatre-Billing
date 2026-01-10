@@ -1,11 +1,9 @@
 package org.example
 
-import androidx.compose.desktop.ui.tooling.preview.Preview
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -16,86 +14,98 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.*
-import org.example.ui.AdminLoginScreen
-import org.example.ui.ProductListScreen
-import org.example.ui.UserBillingScreen
-import org.example.ui.UserLoginScreen
-import androidx.compose.ui.res.useResource
 import androidx.compose.ui.res.loadImageBitmap
+import java.io.InputStream
+import org.example.ui.*
 
 @Composable
-@Preview
 fun App() {
     var screen by remember { mutableStateOf("home") }
     val today = java.time.LocalDate.now().toString()
 
     Box(
-        modifier = Modifier.fillMaxSize().background(org.example.ui.theme.AppTheme.backgroundColor)
+        modifier = Modifier
+            .fillMaxSize()
+            .background(org.example.ui.theme.AppTheme.backgroundColor)
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
+
             Spacer(modifier = Modifier.height(32.dp))
-            Box(modifier = Modifier.fillMaxSize()) {
-                MaterialTheme {
-                    when (screen) {
-                        "home" -> Column(modifier = Modifier.fillMaxSize()) {
-                            Box(
-                                modifier = Modifier.fillMaxWidth().padding(top = 32.dp),
-                                contentAlignment = Alignment.TopCenter
-                            ) {
-                                Text(
-                                    "Lakshmi Multiplex",
-                                    fontSize = 56.sp,
-                                    fontWeight = FontWeight.Black,
-                                    color = org.example.ui.theme.AppTheme.primaryDarkColor,
-                                    style = androidx.compose.ui.text.TextStyle(
-                                        fontFamily = androidx.compose.ui.text.font.FontFamily.SansSerif,
-                                        letterSpacing = 3.sp
-                                    )
-                                )
-                            }
-                            Spacer(modifier = Modifier.height(32.dp))
-                            HomeScreen(
-                                onAdminClick = { screen = "adminLogin" },
-                                onUserClick = { screen = "userLogin" }
-                            )
-                        }
-                        "adminLogin" -> AdminLoginScreen(
-                            onLoginSuccess = { screen = "productList" },
-                            onBack = { screen = "home" }
+
+            when (screen) {
+                "home" -> Column(modifier = Modifier.fillMaxSize()) {
+
+                    Box(
+                        modifier = Modifier.fillMaxWidth(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            "Lakshmi Multiplex",
+                            fontSize = 56.sp,
+                            fontWeight = FontWeight.Black,
+                            color = org.example.ui.theme.AppTheme.primaryDarkColor,
+                            letterSpacing = 3.sp
                         )
-                        "productList" -> ProductListScreen(onLogout = { screen = "home" })
-                        "userLogin" -> UserLoginScreen(
-                            onLoginSuccess = { screen = "userBilling" },
-                            onBack = { screen = "home" }
-                        )
-                        "userBilling" -> UserBillingScreen(onBack = { screen = "home" })
                     }
-                }
-                Box(
-                    modifier = Modifier.fillMaxSize().padding(16.dp),
-                    contentAlignment = Alignment.BottomEnd
-                ) {
-                    Text(
-                        "Date: $today",
-                        color = org.example.ui.theme.AppTheme.primaryDarkColor,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 18.sp
+
+                    Spacer(modifier = Modifier.height(32.dp))
+
+                    HomeScreen(
+                        onAdminClick = { screen = "adminLogin" },
+                        onUserClick = { screen = "userLogin" }
                     )
                 }
+
+                "adminLogin" -> AdminLoginScreen(
+                    onLoginSuccess = { screen = "productList" },
+                    onBack = { screen = "home" }
+                )
+
+                "productList" -> ProductListScreen(
+                    onLogout = { screen = "home" }
+                )
+
+                "userLogin" -> UserLoginScreen(
+                    onLoginSuccess = { screen = "userBilling" },
+                    onBack = { screen = "home" }
+                )
+
+                "userBilling" -> UserBillingScreen(
+                    onBack = { screen = "home" }
+                )
+            }
+
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(16.dp),
+                contentAlignment = Alignment.BottomEnd
+            ) {
+                Text(
+                    "Date: $today",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp,
+                    color = org.example.ui.theme.AppTheme.primaryDarkColor
+                )
             }
         }
     }
 }
 
 @Composable
-fun HomeScreen(onAdminClick: () -> Unit, onUserClick: () -> Unit) {
+fun HomeScreen(
+    onAdminClick: () -> Unit,
+    onUserClick: () -> Unit
+) {
     Box(
-        modifier = Modifier.fillMaxSize().background(Color(0xFFE2E8F0)),
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0xFFE2E8F0)),
         contentAlignment = Alignment.Center
     ) {
         Row(horizontalArrangement = Arrangement.spacedBy(40.dp)) {
-            Tile("User", onClick = onUserClick)
-            Tile("Admin", onClick = onAdminClick)
+            Tile("User", onUserClick)
+            Tile("Admin", onAdminClick)
         }
     }
 }
@@ -110,7 +120,7 @@ fun Tile(text: String, onClick: () -> Unit) {
         contentAlignment = Alignment.Center
     ) {
         Text(
-            text = text,
+            text,
             color = Color.White,
             fontSize = 32.sp,
             fontWeight = FontWeight.Bold
@@ -119,11 +129,20 @@ fun Tile(text: String, onClick: () -> Unit) {
 }
 
 fun main() = application {
+    val icon = run {
+        val resource: InputStream? = object {}.javaClass.classLoader.getResourceAsStream("Logo.jpg")
+        if (resource != null) {
+            BitmapPainter(loadImageBitmap(resource))
+        } else {
+            null
+        }
+    }
+    
     Window(
         onCloseRequest = ::exitApplication,
         title = "LT POS",
-        icon = BitmapPainter(useResource("Logo.jpg", ::loadImageBitmap)),
-        state = rememberWindowState(placement = WindowPlacement.Fullscreen)
+        icon = icon,
+        state = rememberWindowState(width = 1280.dp, height = 800.dp)
     ) {
         App()
     }
