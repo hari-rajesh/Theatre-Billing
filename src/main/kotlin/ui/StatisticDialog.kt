@@ -20,6 +20,7 @@ import org.example.data.ProductDao
 import org.example.data.PurchaseDao
 import java.time.LocalDate
 import java.time.LocalDateTime
+import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import org.example.ui.theme.AppTheme
 import org.example.util.PdfBillGenerator
@@ -46,10 +47,15 @@ fun StatisticDialog(
     onDismiss: () -> Unit
 ) {
     val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd")
+    val timeFormatter = DateTimeFormatter.ofPattern("HH:mm")
     var fromDate by remember { mutableStateOf(LocalDate.now()) }
     var toDate by remember { mutableStateOf(LocalDate.now()) }
     var fromDateStr by remember { mutableStateOf(fromDate.format(formatter)) }
     var toDateStr by remember { mutableStateOf(toDate.format(formatter)) }
+    var fromTime by remember { mutableStateOf(LocalTime.of(6, 0)) }
+    var toTime by remember { mutableStateOf(LocalTime.of(23, 59)) }
+    var fromTimeStr by remember { mutableStateOf(fromTime.format(timeFormatter)) }
+    var toTimeStr by remember { mutableStateOf(toTime.format(timeFormatter)) }
     var stats by remember { mutableStateOf<List<CategoryStat>>(emptyList()) }
     var showStats by remember { mutableStateOf(false) }
     var dailyPayments by remember { mutableStateOf<List<DailyPaymentStat>>(emptyList()) }
@@ -173,6 +179,17 @@ fun StatisticDialog(
                                                 label = { Text("YYYY-MM-DD") },
                                                 modifier = Modifier.fillMaxWidth()
                                             )
+                                            OutlinedTextField(
+                                                value = fromTimeStr,
+                                                onValueChange = {
+                                                    fromTimeStr = it
+                                                    runCatching { 
+                                                        fromTime = LocalTime.parse(it, timeFormatter)
+                                                    }
+                                                },
+                                                label = { Text("HH:mm (24-hour format)") },
+                                                modifier = Modifier.fillMaxWidth()
+                                            )
                                         }
 
                                         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -186,6 +203,17 @@ fun StatisticDialog(
                                                 label = { Text("YYYY-MM-DD") },
                                                 modifier = Modifier.fillMaxWidth()
                                             )
+                                            OutlinedTextField(
+                                                value = toTimeStr,
+                                                onValueChange = {
+                                                    toTimeStr = it
+                                                    runCatching { 
+                                                        toTime = LocalTime.parse(it, timeFormatter)
+                                                    }
+                                                },
+                                                label = { Text("HH:mm (24-hour format)") },
+                                                modifier = Modifier.fillMaxWidth()
+                                            )
                                         }
                                     }
                                 }
@@ -194,8 +222,8 @@ fun StatisticDialog(
                             // Show Statistics Button
                             Button(
                                 onClick = {
-                                    stats = getCategoryStats(fromDate, toDate, categories)
-                                    val payments = getDailyPaymentStats(fromDate, toDate)
+                                    stats = getCategoryStats(fromDate, toDate, fromTime, toTime, categories)
+                                    val payments = getDailyPaymentStats(fromDate, toDate, fromTime, toTime)
                                     dailyPayments = payments
                                     overallCash = payments.sumOf { it.cash }
                                     overallGPay = payments.sumOf { it.gpay }
@@ -282,12 +310,6 @@ fun StatisticDialog(
                                                             shape = RoundedCornerShape(AppTheme.cornerRadius.dp)
                                                         ) {
                                                             Column(modifier = Modifier.padding(12.dp)) {
-                                                                Text(
-                                                                    "Category: ${stat.categoryName}",
-                                                                    fontSize = 16.sp,
-                                                                    fontWeight = FontWeight.Bold,
-                                                                    color = AppTheme.primaryColor
-                                                                )
                                                                 Spacer(Modifier.height(8.dp))
                                                                 stat.products.forEach { prod ->
                                                                     Row(
@@ -532,8 +554,8 @@ data class DailyPaymentStat(
 )
 
 // Helper function for category stats
-fun getCategoryStats(from: LocalDate, to: LocalDate, categories: List<Category>): List<CategoryStat> {
-    println("Getting stats from ${from} 6:00 AM to ${to.plusDays(1)} 5:59 AM")
+fun getCategoryStats(from: LocalDate, to: LocalDate, fromTime: LocalTime, toTime: LocalTime, categories: List<Category>): List<CategoryStat> {
+    println("Getting stats from ${from} ${fromTime} to ${to} ${toTime}")
 
     val productDao = ProductDao()
     val products = productDao.getAll()
@@ -541,8 +563,8 @@ fun getCategoryStats(from: LocalDate, to: LocalDate, categories: List<Category>)
 
     println("Total purchases in DB: ${purchases.size}")
 
-    val startDateTime = from.atTime(6, 0)
-    val endDateTime = to.plusDays(1).atTime(5, 59)
+    val startDateTime = from.atTime(fromTime)
+    val endDateTime = to.atTime(toTime)
 
     println("Start datetime: $startDateTime")
     println("End datetime: $endDateTime")
@@ -585,16 +607,16 @@ fun getLatestSalesDate(): LocalDate? {
 }
 
 // Helper function for daily payment stats
-fun getDailyPaymentStats(from: LocalDate, to: LocalDate): List<DailyPaymentStat> {
-    println("Getting payment stats for date range: $from to $to")
+fun getDailyPaymentStats(from: LocalDate, to: LocalDate, fromTime: LocalTime, toTime: LocalTime): List<DailyPaymentStat> {
+    println("Getting payment stats for date range: $from $fromTime to $to $toTime")
 
     val purchases = PurchaseDao.getAll()
     println("Total purchases found: ${purchases.size}")
 
     val productDao = ProductDao()
     val products = productDao.getAll().associateBy { it.id }
-    val startDateTime = from.atTime(6, 0)
-    val endDateTime = to.plusDays(1).atTime(5, 59)
+    val startDateTime = from.atTime(fromTime)
+    val endDateTime = to.atTime(toTime)
     println("Filtering purchases between $startDateTime and $endDateTime")
 
     val filtered = purchases.filter { purchase ->
@@ -653,22 +675,22 @@ fun generateStatisticsReport(
             appendLine()
 
             if (stats.isNotEmpty()) {
-                appendLine("CATEGORY WISE SALES:")
+                // Flatten all products from all categories into a single list
+                val allProducts = stats.flatMap { it.products }
+                
+                // Column headers - show only once
+                val headerPadding = "Item".padEnd(15)
+                appendLine("$headerPadding Qty  Amount")
                 appendLine("-".repeat(32))
-                stats.forEach { stat ->
-                    appendLine("Category: ${stat.categoryName}")
-                    // Column headers with larger font
-                    val headerPadding = "Item".padEnd(15)
-                    appendLine("$headerPadding Qty  Amount")
-                    appendLine("-".repeat(32))
-                    stat.products.forEach { prod ->
-                        val itemName = if (prod.name.length > 15) prod.name.substring(0, 15) else prod.name.padEnd(15)
-                        val qtyStr = prod.soldQty.toString().padStart(3)
-                        val amountStr = "₹${prod.totalAmount.toInt()}".padStart(8)
-                        appendLine("$itemName  $qtyStr    $amountStr")
-                    }
-                    appendLine()
+                
+                // Show all items without category grouping
+                allProducts.forEach { prod ->
+                    val itemName = if (prod.name.length > 15) prod.name.substring(0, 15) else prod.name.padEnd(15)
+                    val qtyStr = prod.soldQty.toString().padStart(3)
+                    val amountStr = "₹${prod.totalAmount.toInt()}".padStart(8)
+                    appendLine("$itemName  $qtyStr    $amountStr")
                 }
+                appendLine()
             }
             if (dailyPayments.isNotEmpty()) {
                 appendLine("DAILY PAYMENT BREAKDOWN:")

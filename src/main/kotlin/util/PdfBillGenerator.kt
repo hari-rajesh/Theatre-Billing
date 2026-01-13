@@ -111,7 +111,7 @@ object PdfBillGenerator {
             document.add(separator)
 
             // Column headers
-            val columnHeaderFont = com.lowagie.text.Font(com.lowagie.text.Font.COURIER, 10f, com.lowagie.text.Font.BOLD)
+            val columnHeaderFont = com.lowagie.text.Font(com.lowagie.text.Font.COURIER, 8f, com.lowagie.text.Font.BOLD)
             val columnHeaderText = "Item          Qty  Rate    Amount"
             val columnHeader = Paragraph(columnHeaderText, columnHeaderFont)
             columnHeader.alignment = com.lowagie.text.Element.ALIGN_LEFT
@@ -122,7 +122,7 @@ object PdfBillGenerator {
             document.add(separator2)
 
             // Items with improved spacing
-            val itemFont = com.lowagie.text.Font(com.lowagie.text.Font.COURIER, 11f) // Increased font size
+            val itemFont = com.lowagie.text.Font(com.lowagie.text.Font.COURIER, 9f) // Slightly larger font
             var total = 0.0
 
             categoryCart.forEach { (product, qty) ->
@@ -143,7 +143,7 @@ object PdfBillGenerator {
 
                 // Calculation line
                 val calcLine = "  ${qty} × ₹${product.price.toInt()} = ₹${(product.price * qty).toInt()}"
-                val calcPara = Paragraph(calcLine, com.lowagie.text.Font(com.lowagie.text.Font.COURIER, 10f))
+                val calcPara = Paragraph(calcLine, com.lowagie.text.Font(com.lowagie.text.Font.COURIER, 8f))
                 calcPara.alignment = com.lowagie.text.Element.ALIGN_LEFT
                 document.add(calcPara)
 
@@ -304,9 +304,9 @@ object PdfBillGenerator {
             y += lineHeight
 
             // Items header - bold and properly spaced
-            drawLeftText("Item             Qty    Value", Font("Monospaced", Font.BOLD, 12), y)
+            drawLeftText("Item             Qty    Value", Font("Monospaced", Font.BOLD, 10), y)
             y += lineHeight
-            drawLeftText("_".repeat(32), Font("Monospaced", Font.BOLD, 11), y)
+            drawLeftText("_".repeat(32), Font("Monospaced", Font.BOLD, 9), y)
             y += lineHeight
 
             // Items with detailed format
@@ -323,7 +323,7 @@ object PdfBillGenerator {
 
                 // Main item line - same format as sales report
                 val line = "$itemName $qtyStr    $amountStr"
-                drawLeftText(line, Font("Monospaced", Font.BOLD, 11), y)
+                drawLeftText(line, Font("Monospaced", Font.BOLD, 9), y)
                 y += lineHeight
 
                 total += product.price * qty
