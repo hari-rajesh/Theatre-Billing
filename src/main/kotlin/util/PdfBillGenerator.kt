@@ -76,7 +76,7 @@ object PdfBillGenerator {
 
             // Title
             val titleFont = com.lowagie.text.Font(com.lowagie.text.Font.COURIER, 10f, com.lowagie.text.Font.BOLD)
-            val titlePara = Paragraph("LAKSHMI MULTIPLEX", titleFont)
+            val titlePara = Paragraph("THEATRE CANTEEN", titleFont)
             titlePara.alignment = com.lowagie.text.Element.ALIGN_CENTER
             document.add(titlePara)
 
@@ -86,10 +86,6 @@ object PdfBillGenerator {
                 categoryPara.alignment = com.lowagie.text.Element.ALIGN_CENTER
                 document.add(categoryPara)
             }
-
-            val subtitlePara = Paragraph("Theatre Canteen", com.lowagie.text.Font(com.lowagie.text.Font.COURIER, 8f, com.lowagie.text.Font.BOLD))
-            subtitlePara.alignment = com.lowagie.text.Element.ALIGN_CENTER
-            document.add(subtitlePara)
 
             document.add(Paragraph(" "))
 
@@ -115,7 +111,7 @@ object PdfBillGenerator {
             document.add(separator)
 
             // Column headers
-            val columnHeaderFont = com.lowagie.text.Font(com.lowagie.text.Font.COURIER, 8f, com.lowagie.text.Font.NORMAL)
+            val columnHeaderFont = com.lowagie.text.Font(com.lowagie.text.Font.COURIER, 8f, com.lowagie.text.Font.BOLD)
             val columnHeaderText = "Item          Qty  Rate    Amount"
             val columnHeader = Paragraph(columnHeaderText, columnHeaderFont)
             columnHeader.alignment = com.lowagie.text.Element.ALIGN_LEFT
@@ -283,10 +279,7 @@ object PdfBillGenerator {
             }
 
             // Header
-            drawCenteredText("LAKSHMI MULTIPLEX", Font("Monospaced", Font.BOLD, 14), y)
-            y += lineHeight
-
-            drawCenteredText("Theatre Canteen", Font("Monospaced", Font.BOLD, 11), y)
+            drawCenteredText("THEATRE CANTEEN", Font("Monospaced", Font.BOLD, 14), y)
             y += lineHeight
 
             // Add category name if available
@@ -356,6 +349,82 @@ object PdfBillGenerator {
     // Helper function to get total
     fun getTotal(cart: Map<Product, Int>): Double {
         return cart.entries.sumOf { it.key.price * it.value }
+    }
+
+    // Function to print grand total summary
+    fun printGrandTotalSummary(grandTotal: Double, paymentMode: String) {
+        try {
+            val now = LocalDateTime.now()
+            val dateFormatter = DateTimeFormatter.ofPattern("dd MMM yyyy, hh:mm a")
+            val formattedDate = now.format(dateFormatter)
+
+            // Create grand total summary text
+            val grandTotalReport = buildString {
+                appendLine("GRAND TOTAL SUMMARY")
+                appendLine("=".repeat(32))
+                appendLine("Payment Mode: $paymentMode")
+                appendLine()
+                appendLine("GRAND TOTAL:")
+                appendLine("-".repeat(20))
+                appendLine("TOTAL: ₹${grandTotal.toInt()}")
+                appendLine()
+                appendLine("Thank you!")
+            }
+
+            // Generate PDF and print the grand total summary
+            val pdfPath = generateGrandTotalPdf(grandTotalReport)
+            println("Grand total summary PDF saved to: $pdfPath")
+
+            // Print to thermal printer
+            val printerJob = PrinterJob.getPrinterJob()
+
+            // Try to find a thermal printer
+            val printServices = PrintServiceLookup.lookupPrintServices(null, null)
+            var selectedPrinter: PrintService? = null
+
+            // Look for thermal printer or default printer
+            for (service in printServices) {
+                val name = service.name.lowercase()
+                if (name.contains("thermal") || name.contains("receipt") || name.contains("pos") || name.contains("tm-t82")) {
+                    selectedPrinter = service
+                    break
+                }
+            }
+
+            // If no thermal printer found, use default printer
+            if (selectedPrinter == null && printServices.isNotEmpty()) {
+                selectedPrinter = printServices[0]
+            }
+
+            if (selectedPrinter != null) {
+                printerJob.printService = selectedPrinter
+
+                // Set up page format for EPSON TM-T82X (79.5mm paper)
+                val pageFormat = printerJob.defaultPage()
+                pageFormat.setPaper(java.awt.print.Paper().apply {
+                    val width = 90.0 * 2.834645669 // 90mm in points for wider paper
+                    val height = 6.0 * 72.0 // 6 inches height for grand total summary
+                    setSize(width, height)
+                    setImageableArea(25.0, 5.0, width - 35.0, height - 10.0)
+                })
+
+                printerJob.setPrintable(GrandTotalSummaryPrintable(grandTotalReport), pageFormat)
+
+                // Print attributes
+                val attributes = HashPrintRequestAttributeSet()
+                attributes.add(Copies(1))
+                attributes.add(OrientationRequested.PORTRAIT)
+
+                printerJob.print(attributes)
+                println("Grand total summary printed successfully on: ${selectedPrinter.name}")
+            } else {
+                println("No printer found. PDF saved to: $pdfPath")
+            }
+
+        } catch (e: Exception) {
+            println("Error generating/printing grand total summary: ${e.message}")
+            e.printStackTrace()
+        }
     }
 
     // Function to generate PDF and print statistics report
@@ -436,17 +505,11 @@ object PdfBillGenerator {
             
             lines.forEach { line ->
                 when {
-                    line.contains("LAKSHMI MULTIPLEX") -> {
+                    line.contains("THEATRE CANTEEN") -> {
                         val titleFont = com.lowagie.text.Font(com.lowagie.text.Font.COURIER, 10f, com.lowagie.text.Font.BOLD)
                         val titlePara = Paragraph(line, titleFont)
                         titlePara.alignment = com.lowagie.text.Element.ALIGN_CENTER
                         document.add(titlePara)
-                    }
-                    line.contains("Theatre Canteen") -> {
-                        val subtitleFont = com.lowagie.text.Font(com.lowagie.text.Font.COURIER, 8f, com.lowagie.text.Font.BOLD)
-                        val subtitlePara = Paragraph(line, subtitleFont)
-                        subtitlePara.alignment = com.lowagie.text.Element.ALIGN_CENTER
-                        document.add(subtitlePara)
                     }
                     line.contains("Sales Statistics Report") -> {
                         val reportTitleFont = com.lowagie.text.Font(com.lowagie.text.Font.COURIER, 8f, com.lowagie.text.Font.BOLD)
@@ -470,9 +533,15 @@ object PdfBillGenerator {
                         document.add(infoPara)
                     }
                     line.contains("Category:") -> {
-                        val categoryFont = com.lowagie.text.Font(com.lowagie.text.Font.COURIER, 8f, com.lowagie.text.Font.BOLD)
+                        val categoryFont = com.lowagie.text.Font(com.lowagie.text.Font.COURIER, 10f, com.lowagie.text.Font.BOLD)
                         val categoryPara = Paragraph(line, categoryFont)
                         document.add(categoryPara)
+                    }
+                    line.matches(Regex(".*Item.*Qty.*Amount.*")) -> {
+                        // Column headers with larger font
+                        val headerFont = com.lowagie.text.Font(com.lowagie.text.Font.COURIER, 10f, com.lowagie.text.Font.BOLD)
+                        val headerPara = Paragraph(line, headerFont)
+                        document.add(headerPara)
                     }
                     line.contains("OVERALL SUMMARY:") || line.contains("DAILY PAYMENT BREAKDOWN:") -> {
                         val headerFont = com.lowagie.text.Font(com.lowagie.text.Font.COURIER, 8f, com.lowagie.text.Font.BOLD)
@@ -512,6 +581,154 @@ object PdfBillGenerator {
         return pdfFile.absolutePath
     }
 
+    // Function to generate PDF file for grand total summary
+    private fun generateGrandTotalPdf(report: String): String {
+        val documentsDir = System.getProperty("user.home") + java.io.File.separator + "Documents"
+        val timestamp = System.currentTimeMillis()
+        val pdfFile = java.io.File(documentsDir, "grand_total_summary_$timestamp.pdf")
+
+        // Create document with custom size similar to bill format
+        val pageSize = Rectangle(280f, 400f) // Smaller height for grand total summary
+        val document = Document(pageSize, 20f, 20f, 20f, 20f)
+
+        try {
+            PdfWriter.getInstance(document, FileOutputStream(pdfFile))
+            document.open()
+
+            // Split report into lines
+            val lines = report.split("\n")
+            
+            lines.forEach { line ->
+                when {
+                    line.contains("GRAND TOTAL SUMMARY") -> {
+                        val reportTitleFont = com.lowagie.text.Font(com.lowagie.text.Font.COURIER, 10f, com.lowagie.text.Font.BOLD)
+                        val reportTitlePara = Paragraph(line, reportTitleFont)
+                        reportTitlePara.alignment = com.lowagie.text.Element.ALIGN_CENTER
+                        document.add(reportTitlePara)
+                    }
+                    line.contains("=") -> {
+                        val separatorFont = com.lowagie.text.Font(com.lowagie.text.Font.COURIER, 8f, com.lowagie.text.Font.BOLD)
+                        val separatorPara = Paragraph(line, separatorFont)
+                        document.add(separatorPara)
+                    }
+                    line.contains("-") && line.length > 10 -> {
+                        val separatorFont = com.lowagie.text.Font(com.lowagie.text.Font.COURIER, 8f, com.lowagie.text.Font.BOLD)
+                        val separatorPara = Paragraph(line, separatorFont)
+                        document.add(separatorPara)
+                    }
+                    line.contains("Payment Mode:") -> {
+                        val infoFont = com.lowagie.text.Font(com.lowagie.text.Font.COURIER, 8f, com.lowagie.text.Font.BOLD)
+                        val infoPara = Paragraph(line, infoFont)
+                        document.add(infoPara)
+                    }
+                    line.contains("GRAND TOTAL:") -> {
+                        val headerFont = com.lowagie.text.Font(com.lowagie.text.Font.COURIER, 8f, com.lowagie.text.Font.BOLD)
+                        val headerPara = Paragraph(line, headerFont)
+                        document.add(headerPara)
+                    }
+                    line.contains("TOTAL:") -> {
+                        val totalFont = com.lowagie.text.Font(com.lowagie.text.Font.COURIER, 10f, com.lowagie.text.Font.BOLD)
+                        val totalPara = Paragraph(line, totalFont)
+                        document.add(totalPara)
+                    }
+                    line.trim().isEmpty() -> {
+                        document.add(Paragraph(" "))
+                    }
+                    else -> {
+                        val normalFont = com.lowagie.text.Font(com.lowagie.text.Font.COURIER, 8f)
+                        val normalPara = Paragraph(line, normalFont)
+                        document.add(normalPara)
+                    }
+                }
+            }
+
+            // Add footer
+            document.add(Paragraph(" "))
+            val footerFont = com.lowagie.text.Font(com.lowagie.text.Font.HELVETICA, 7f, com.lowagie.text.Font.ITALIC)
+            val footer = Paragraph("Thank you!", footerFont)
+            footer.alignment = com.lowagie.text.Element.ALIGN_CENTER
+            document.add(footer)
+
+        } catch (e: DocumentException) {
+            e.printStackTrace()
+            throw e
+        } finally {
+            document.close()
+        }
+
+        return pdfFile.absolutePath
+    }
+
+    private class GrandTotalSummaryPrintable(
+        private val report: String
+    ) : Printable {
+
+        override fun print(graphics: Graphics, pageFormat: PageFormat, pageIndex: Int): Int {
+            if (pageIndex > 0) return Printable.NO_SUCH_PAGE
+
+            val g2d = graphics as Graphics2D
+            g2d.color = Color.BLACK
+
+            var y = 20
+            val lineHeight = 12
+            val paperWidth = 190
+            val leftMargin = 25
+
+            // Helper function to center text
+            fun drawCenteredText(text: String, font: Font, yPos: Int) {
+                g2d.font = font
+                val textWidth = g2d.fontMetrics.stringWidth(text)
+                val x = leftMargin + (paperWidth - textWidth) / 2
+                g2d.drawString(text, x, yPos)
+            }
+
+            // Helper function to draw left-aligned text
+            fun drawLeftText(text: String, font: Font, yPos: Int) {
+                g2d.font = font
+                g2d.drawString(text, leftMargin, yPos)
+            }
+
+            // Split report into lines and print each line with bill-style formatting
+            val lines = report.split("\n")
+            lines.forEach { line ->
+                when {
+                    line.contains("GRAND TOTAL SUMMARY") -> {
+                        drawCenteredText(line, Font("Monospaced", Font.BOLD, 12), y)
+                    }
+                    line.contains("=") -> {
+                        drawLeftText(line, Font("Monospaced", Font.BOLD, 10), y)
+                    }
+                    line.contains("-") && line.length > 10 -> {
+                        drawLeftText(line, Font("Monospaced", Font.BOLD, 10), y)
+                    }
+                    line.contains("Payment Mode:") -> {
+                        drawLeftText(line, Font("Monospaced", Font.BOLD, 10), y)
+                    }
+                    line.contains("GRAND TOTAL:") -> {
+                        drawLeftText(line, Font("Monospaced", Font.BOLD, 10), y)
+                    }
+                    line.contains("TOTAL:") -> {
+                        drawLeftText(line, Font("Monospaced", Font.BOLD, 12), y)
+                    }
+                    line.trim().isEmpty() -> {
+                        // Skip empty lines or add minimal spacing
+                        y += 4
+                    }
+                    else -> {
+                        drawLeftText(line, Font("Monospaced", Font.PLAIN, 9), y)
+                    }
+                }
+                y += lineHeight
+            }
+
+            // Add footer like in the bill
+            y += lineHeight
+            drawCenteredText("Thank you!", Font("Monospaced", Font.ITALIC, 10), y)
+
+            return Printable.PAGE_EXISTS
+        }
+    }
+
     private class StatisticsReportPrintable(
         private val report: String
     ) : Printable {
@@ -545,11 +762,8 @@ object PdfBillGenerator {
             val lines = report.split("\n")
             lines.forEach { line ->
                 when {
-                    line.contains("LAKSHMI MULTIPLEX") -> {
+                    line.contains("THEATRE CANTEEN") -> {
                         drawCenteredText(line, Font("Monospaced", Font.BOLD, 14), y)
-                    }
-                    line.contains("Theatre Canteen") -> {
-                        drawCenteredText(line, Font("Monospaced", Font.BOLD, 11), y)
                     }
                     line.contains("Sales Statistics Report") -> {
                         drawCenteredText(line, Font("Monospaced", Font.BOLD, 11), y)
@@ -564,7 +778,11 @@ object PdfBillGenerator {
                         drawLeftText(line, Font("Monospaced", Font.BOLD, 10), y)
                     }
                     line.contains("Category:") -> {
-                        drawLeftText(line, Font("Monospaced", Font.BOLD, 10), y)
+                        drawLeftText(line, Font("Monospaced", Font.BOLD, 11), y)
+                    }
+                    line.matches(Regex(".*Item.*Qty.*Amount.*")) -> {
+
+                        drawLeftText(line, Font("Monospaced", Font.BOLD, 13), y)
                     }
                     line.contains("OVERALL SUMMARY:") || line.contains("DAILY PAYMENT BREAKDOWN:") -> {
                         drawLeftText(line, Font("Monospaced", Font.BOLD, 10), y)

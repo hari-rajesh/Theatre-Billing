@@ -4,8 +4,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
-
-
 import androidx.compose.foundation.focusable
 import androidx.compose.ui.input.key.*
 import androidx.compose.ui.focus.FocusRequester
@@ -42,40 +40,45 @@ fun UserBillingScreen(onBack: () -> Unit) {
     var paymentMode by remember { mutableStateOf("Cash") }
     var showBillDialog by remember { mutableStateOf(false) }
     val generateBillFocusRequester = remember { FocusRequester() }
-    
+
+    // Sort products alphabetically by name (case-insensitive)
+    val sortedProducts = remember(products) {
+        products.sortedBy { it.name.lowercase() }
+    }
+
     // Function to handle bill generation
     fun generateBill() {
         if (cart.isNotEmpty()) {
             showBillDialog = true
         }
     }
-    
+
     // Auto-focus the Generate Bill button when screen loads and whenever cart changes
     LaunchedEffect(Unit) {
         generateBillFocusRequester.requestFocus()
     }
-    
+
     // Re-focus when cart changes to ensure button is always focused
     LaunchedEffect(cart.size) {
         if (!showBillDialog) {
             generateBillFocusRequester.requestFocus()
         }
     }
-    
+
     // Re-focus when cart contents change (products added/removed)
     LaunchedEffect(cart.keys.size) {
         if (!showBillDialog) {
             generateBillFocusRequester.requestFocus()
         }
     }
-    
+
     // Re-focus when any cart item quantity changes
     LaunchedEffect(cart.values.sum()) {
         if (!showBillDialog) {
             generateBillFocusRequester.requestFocus()
         }
     }
-    
+
     // Re-focus Generate Bill button when dialog closes
     LaunchedEffect(showBillDialog) {
         if (!showBillDialog) {
@@ -111,15 +114,14 @@ fun UserBillingScreen(onBack: () -> Unit) {
 
             Text("Select Products", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = tileTextColor)
             Spacer(Modifier.height(16.dp))
-            
-            // Scrollable product grid
+
             LazyVerticalGrid(
                 columns = GridCells.Fixed(3),
                 modifier = Modifier.fillMaxSize(),
                 horizontalArrangement = Arrangement.spacedBy(tileSpacing),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                items(products) { product ->
+                items(sortedProducts) { product ->
                     val isOutOfStock = product.stock <= 0
                     val cartQty = cart[product] ?: 0
                     val canAdd = product.stock > cartQty
@@ -132,7 +134,7 @@ fun UserBillingScreen(onBack: () -> Unit) {
                         },
                         border = BorderStroke(
                             width = 2.dp,
-                            color = if (isOutOfStock) Color.Red else Color(0xFF006400) // Dark green border for available, red for out of stock
+                            color = if (isOutOfStock) Color.Red else Color(0xFF006400)
                         ),
                         modifier = Modifier
                             .height(120.dp)
@@ -149,13 +151,13 @@ fun UserBillingScreen(onBack: () -> Unit) {
                             verticalArrangement = Arrangement.SpaceBetween,
                             horizontalAlignment = Alignment.Start
                         ) {
-                            Text(product.name, 
-                                fontSize = 18.sp, 
-                                fontWeight = FontWeight.Bold, 
+                            Text(product.name,
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Bold,
                                 color = if (isOutOfStock) tileTextOutOfStock else tileTextColor
                             )
-                            Text("Price: ₹${product.price}", 
-                                fontSize = 14.sp, 
+                            Text("Price: ₹${product.price}",
+                                fontSize = 14.sp,
                                 color = AppTheme.textSecondary
                             )
                             Row(
@@ -163,8 +165,8 @@ fun UserBillingScreen(onBack: () -> Unit) {
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 modifier = Modifier.fillMaxWidth()
                             ) {
-                                Text("Stock: ${product.stock}", 
-                                    fontSize = 14.sp, 
+                                Text("Stock: ${product.stock}",
+                                    fontSize = 14.sp,
                                     color = if (isOutOfStock) tileTextOutOfStock else tileTextColor
                                 )
                                 if (canAdd && !isOutOfStock) {
@@ -241,27 +243,27 @@ fun UserBillingScreen(onBack: () -> Unit) {
                         .padding(16.dp),
                     verticalArrangement = Arrangement.Bottom
                 ) {
-                    Text("Total: ₹$total", 
-                        fontSize = 20.sp, 
+                    Text("Total: ₹$total",
+                        fontSize = 20.sp,
                         fontWeight = FontWeight.Bold,
                         color = AppTheme.primaryDarkColor
                     )
                     Spacer(Modifier.height(12.dp))
-                    Text("Payment Mode:", 
-                        fontSize = 16.sp, 
+                    Text("Payment Mode:",
+                        fontSize = 16.sp,
                         fontWeight = FontWeight.Medium,
                         color = AppTheme.textPrimary
                     )
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         RadioButton(
-                            selected = paymentMode == "Cash", 
+                            selected = paymentMode == "Cash",
                             onClick = { paymentMode = "Cash" },
                             colors = RadioButtonDefaults.colors(selectedColor = AppTheme.accentColor)
                         )
                         Text("Cash", color = AppTheme.textSecondary)
                         Spacer(Modifier.width(16.dp))
                         RadioButton(
-                            selected = paymentMode == "GPay", 
+                            selected = paymentMode == "GPay",
                             onClick = { paymentMode = "GPay" },
                             colors = RadioButtonDefaults.colors(selectedColor = AppTheme.accentColor)
                         )
@@ -289,8 +291,9 @@ fun UserBillingScreen(onBack: () -> Unit) {
                         Text("Generate Bill", fontWeight = FontWeight.Bold)
                     }
                     Spacer(Modifier.height(8.dp))
+
                     OutlinedButton(
-                        onClick = onBack, 
+                        onClick = onBack,
                         modifier = Modifier.fillMaxWidth(),
                         colors = ButtonDefaults.outlinedButtonColors(
                             contentColor = AppTheme.primaryColor
@@ -309,6 +312,8 @@ fun UserBillingScreen(onBack: () -> Unit) {
             paymentMode = paymentMode,
             onConfirm = {
                 val now = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))
+                val currentBillTotal = cart.entries.sumOf { it.key.price * it.value }
+
                 cart.forEach { (product, qty) ->
                     val newStock = product.stock - qty
                     productDao.update(product.copy(stock = newStock))
@@ -320,6 +325,10 @@ fun UserBillingScreen(onBack: () -> Unit) {
                     ))
                 }
                 PdfBillGenerator.generateBill(cart, paymentMode, null)
+
+                // Print grand total summary
+                PdfBillGenerator.printGrandTotalSummary(currentBillTotal, paymentMode)
+
                 cart.clear()
                 products = productDao.getAll() // Refresh product list to update stock
                 showBillDialog = false
@@ -339,7 +348,7 @@ fun BillDialog(
     generateBillFocusRequester: FocusRequester
 ) {
     val confirmButtonFocusRequester = remember { FocusRequester() }
-    
+
     // Auto-focus the Confirm & Print button when dialog opens
     LaunchedEffect(Unit) {
         confirmButtonFocusRequester.requestFocus()
@@ -348,13 +357,13 @@ fun BillDialog(
         onDismissRequest = onDismiss,
         backgroundColor = AppTheme.surfaceColor,
         shape = RoundedCornerShape(AppTheme.cornerRadius.dp),
-        title = { 
+        title = {
             Text(
-                "Confirm Bill", 
-                fontWeight = FontWeight.Bold, 
+                "Confirm Bill",
+                fontWeight = FontWeight.Bold,
                 fontSize = 20.sp,
                 color = AppTheme.primaryColor
-            ) 
+            )
         },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -374,8 +383,8 @@ fun BillDialog(
                 ) {
                     Text("Total:", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = AppTheme.textPrimary)
                     Text(
-                        "₹${cart.entries.sumOf { it.key.price * it.value }}", 
-                        fontWeight = FontWeight.Bold, 
+                        "₹${cart.entries.sumOf { it.key.price * it.value }}",
+                        fontWeight = FontWeight.Bold,
                         fontSize = 16.sp,
                         color = AppTheme.accentColor
                     )
@@ -401,8 +410,8 @@ fun BillDialog(
                     contentColor = AppTheme.textOnPrimary
                 ),
                 shape = RoundedCornerShape(AppTheme.cornerRadius.dp)
-            ) { 
-                Text("Confirm & Print", fontWeight = FontWeight.Bold) 
+            ) {
+                Text("Confirm & Print", fontWeight = FontWeight.Bold)
             }
         },
         dismissButton = {
@@ -412,8 +421,8 @@ fun BillDialog(
                     contentColor = AppTheme.primaryColor
                 ),
                 shape = RoundedCornerShape(AppTheme.cornerRadius.dp)
-            ) { 
-                Text("Cancel") 
+            ) {
+                Text("Cancel")
             }
         }
     )
